@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Size & Gear Analytics | パーソナル計測・ピアス管理</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151e2e',
+              900: '#0f172a',
+              950: '#090d16',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #090d16;
+      color: #f1f5f9;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .font-num {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* カスタムスクロールバー */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200 pb-16">
+
+  <!-- トースト通知エリア -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- 確認モーダル（alert/confirm代替） -->
+  <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl transform transition-all">
+      <h3 id="modal-title" class="text-lg font-bold text-slate-100 mb-2">確認</h3>
+      <p id="modal-message" class="text-sm text-slate-400 mb-6">この操作を実行してもよろしいですか？</p>
+      <div class="flex justify-end gap-3">
+        <button id="modal-cancel" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition">キャンセル</button>
+        <button id="modal-confirm" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium transition shadow-lg shadow-rose-950/50">実行する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ヘッダー -->
+  <header class="sticky top-0 z-30 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
+          <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
+            Size & Gear Analytics
+          </h1>
+          <p class="text-xs text-slate-400">経時変化・ばらつき分析＆ピアスログ</p>
+        </div>
+      </div>
+
+      <!-- データ管理アクション -->
+      <div class="flex items-center gap-2 self-end sm:self-auto">
+        <button onclick="exportCSV()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 flex items-center gap-1.5 transition" title="CSV形式でダウンロード">
+          <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          CSV
+        </button>
+        <button onclick="exportJSON()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 flex items-center gap-1.5 transition" title="全データをJSONバックアップ">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+          JSON
+        </button>
+        <button onclick="confirmResetData()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-rose-950/50 border border-slate-800 hover:border-rose-800/60 text-xs font-medium text-slate-400 hover:text-rose-300 transition" title="初期データに戻す">
+          初期化
+        </button>
+      </div>
+    </div>
+
+    <!-- ナビゲーションタブ -->
+    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      <nav class="flex gap-1 sm:gap-2 overflow-x-auto no-scrollbar border-t border-slate-800/50 pt-2">
+        <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="tab-btn active px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-t-xl border-b-2 border-cyan-400 text-cyan-400 bg-slate-900/60 whitespace-nowrap transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+          計測・推移グラフ
+        </button>
+        <button onclick="switchTab('specs')" id="tab-btn-specs" class="tab-btn px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40 whitespace-nowrap transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          詳細スペックシート
+        </button>
+        <button onclick="switchTab('piercing')" id="tab-btn-piercing" class="tab-btn px-4 py-2.5 text-xs sm:text-sm font-medium rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40 whitespace-nowrap transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+          ピアス履歴
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-5 space-y-6">
+
+    <!-- ========================================== -->
+    <!-- タブ1: 計測・推移グラフ（縦型ワークフロー） -->
+    <!-- ========================================== -->
+    <div id="view-analytics" class="tab-view space-y-6">
+
+      <!-- 1. 最上部：新規・過去計測データインプット -->
+      <section class="bg-slate-900 border border-slate-800/90 rounded-2xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500"></div>
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div class="flex items-center gap-2.5">
+            <span class="w-2.5 h-6 rounded-full bg-gradient-to-b from-cyan-400 to-emerald-400 shrink-0"></span>
+            <div>
+              <h2 id="form-title" class="text-base sm:text-lg font-bold text-slate-100">計測データをインプット</h2>
+              <p class="text-[11px] sm:text-xs text-slate-400">恥骨押し付け基準で記録 → 下の最新サマリー＆グラフに即時反映</p>
+            </div>
+          </div>
+
+          <!-- 今日 / 過去データ日付モード切替 -->
+          <div class="inline-flex p-1 rounded-xl bg-slate-950 border border-slate-800 self-start sm:self-auto">
+            <button type="button" id="mode-today-btn" onclick="setInputDateMode('today')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition">
+              今日の計測
+            </button>
+            <button type="button" id="mode-past-btn" onclick="setInputDateMode('past')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition">
+              過去データ追加
+            </button>
+          </div>
+        </div>
+
+        <form id="measurement-form" onsubmit="handleMeasurementSubmit(event)" class="space-y-4">
+          <input type="hidden" id="edit-record-id" value="">
+
+          <div class="grid grid-cols-2 sm:grid-cols-12 gap-3">
+            <!-- 計測日 -->
+            <div class="col-span-1 sm:col-span-3">
+              <label class="block text-[11px] font-medium text-slate-400 mb-1">計測日</label>
+              <input type="date" id="input-date" required class="font-num w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+            </div>
+
+            <!-- 時間帯 -->
+            <div class="col-span-1 sm:col-span-2">
+              <label class="block text-[11px] font-medium text-slate-400 mb-1">時間帯</label>
+              <select id="input-timeOfDay" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+                <option value="朝">🌅 朝</option>
+                <option value="昼">☀️ 昼</option>
+                <option value="夜">🌙 夜</option>
+                <option value="その他">⏱️ その他</option>
+              </select>
+            </div>
+
+            <!-- 通常時 -->
+            <div class="col-span-2 sm:col-span-2">
+              <label class="block text-[11px] font-semibold text-cyan-400 mb-1">通常時 (cm)</label>
+              <input type="number" step="0.1" min="0" max="35" id="input-flaccid" required placeholder="12.1" class="font-num w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-bold text-cyan-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 transition">
+            </div>
+
+            <!-- 伸展時 -->
+            <div class="col-span-1 sm:col-span-2">
+              <label class="block text-[11px] font-semibold text-emerald-400 mb-1">伸展時 (cm)</label>
+              <input type="number" step="0.1" min="0" max="35" id="input-stretched" required placeholder="17.3" class="font-num w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-bold text-emerald-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 transition">
+            </div>
+
+            <!-- 勃起時 -->
+            <div class="col-span-1 sm:col-span-3">
+              <label class="block text-[11px] font-semibold text-indigo-400 mb-1">勃起時 (cm)</label>
+              <input type="number" step="0.1" min="0" max="35" id="input-erect" required placeholder="15.9" class="font-num w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-bold text-indigo-200 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition">
+            </div>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1">
+              <input type="text" id="input-note" placeholder="コンディション・メモ（例: 朝イチ計測、室温22℃、90°恥骨押し付け）" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs sm:text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500 transition">
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button type="submit" id="submit-btn" class="flex-1 sm:flex-initial py-2.5 px-6 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-500/20 transition transform active:scale-[0.98] whitespace-nowrap">
+                記録を保存する
+              </button>
+              <button type="button" id="cancel-edit-btn" onclick="resetForm()" class="hidden px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition">
+                取消
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- 2. 最新データ＆統計サマリー（ばらつき比較） -->
+      <section class="space-y-2.5">
+        <div class="flex items-center justify-between px-1">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+            <span>最新計測値 ＆ 過去データ統計比較</span>
+            <span id="latest-record-badge" class="font-num text-[11px] px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-slate-300">--</span>
+          </h3>
+          <span class="text-[11px] text-slate-500 hidden sm:inline">※ ±1SD（標準偏差）内なら通常の生理的ばらつき範囲</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- 通常時 KPI -->
+          <div class="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-lg">
+            <div class="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full -mr-8 -mt-8 pointer-events-none"></div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-semibold tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                通常時（恥骨押し付け）
+              </span>
+              <span id="kpi-flaccid-diff" class="font-num text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">--</span>
+            </div>
+            <div class="flex items-baseline justify-between my-1">
+              <div>
+                <span id="kpi-flaccid-latest" class="font-num text-3xl font-bold text-white">--</span>
+                <span class="text-sm text-slate-400 ml-1">cm</span>
+              </div>
+              <span id="kpi-flaccid-vs-avg" class="font-num text-xs text-slate-400">平均比 --</span>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+              <span>全期間平均: <strong id="kpi-flaccid-avg" class="font-num text-slate-200">--</strong> cm</span>
+              <span>ばらつき(SD): <strong id="kpi-flaccid-sd" class="font-num text-cyan-300">±--</strong> cm</span>
+            </div>
+          </div>
+
+          <!-- 伸展時 KPI -->
+          <div class="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-lg">
+            <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full -mr-8 -mt-8 pointer-events-none"></div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-semibold tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                伸展時（無理のない範囲）
+              </span>
+              <span id="kpi-stretched-diff" class="font-num text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">--</span>
+            </div>
+            <div class="flex items-baseline justify-between my-1">
+              <div>
+                <span id="kpi-stretched-latest" class="font-num text-3xl font-bold text-white">--</span>
+                <span class="text-sm text-slate-400 ml-1">cm</span>
+              </div>
+              <span id="kpi-stretched-vs-avg" class="font-num text-xs text-slate-400">平均比 --</span>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+              <span>全期間平均: <strong id="kpi-stretched-avg" class="font-num text-slate-200">--</strong> cm</span>
+              <span>ばらつき(SD): <strong id="kpi-stretched-sd" class="font-num text-emerald-300">±--</strong> cm</span>
+            </div>
+          </div>
+
+          <!-- 勃起時 KPI -->
+          <div class="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-lg">
+            <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full -mr-8 -mt-8 pointer-events-none"></div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-semibold tracking-wider text-indigo-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                勃起時（90°恥骨押し付け）
+              </span>
+              <span id="kpi-erect-diff" class="font-num text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">--</span>
+            </div>
+            <div class="flex items-baseline justify-between my-1">
+              <div>
+                <span id="kpi-erect-latest" class="font-num text-3xl font-bold text-white">--</span>
+                <span class="text-sm text-slate-400 ml-1">cm</span>
+              </div>
+              <span id="kpi-erect-vs-avg" class="font-num text-xs text-slate-400">平均比 --</span>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+              <span>全期間平均: <strong id="kpi-erect-avg" class="font-num text-slate-200">--</strong> cm</span>
+              <span>ばらつき(SD): <strong id="kpi-erect-sd" class="font-num text-indigo-300">±--</strong> cm</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 推移グラフ＆ばらつき分析チャート -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-100">経時推移 ＆ ばらつきレンジ可視化</h2>
+            <p class="text-xs text-slate-400 mt-0.5">時系列の変化と平均線・±1SDばらつき帯をオーバーレイ表示</p>
+          </div>
+          
+          <!-- フィルタ＆オーバーレイ切替 -->
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="chart-range-filter" onchange="renderChart()" class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 focus:outline-none focus:border-cyan-500">
+              <option value="all">全期間表示</option>
+              <option value="7">直近7件</option>
+              <option value="14">直近14件</option>
+              <option value="30">直近30件</option>
+            </select>
+
+            <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 cursor-pointer select-none hover:border-slate-700 transition">
+              <input type="checkbox" id="toggle-avg-lines" checked onchange="renderChart()" class="rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-cyan-500/30">
+              <span>平均ライン</span>
+            </label>
+
+            <label class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 cursor-pointer select-none hover:border-slate-700 transition">
+              <input type="checkbox" id="toggle-sd-bands" checked onchange="renderChart()" class="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500/30">
+              <span>±1SDばらつき帯</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- レスポンシブCanvasコンテナ -->
+        <div class="relative w-full h-72 sm:h-80 md:h-96">
+          <canvas id="trendChart"></canvas>
+        </div>
+
+        <!-- 測定ルールリマインダー -->
+        <div class="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-400">
+          <div class="bg-slate-950/60 px-3 py-2 rounded-xl border border-slate-800/60">
+            <span class="text-cyan-400 font-semibold">通常時:</span> 自然な状態で恥骨から亀頭先端
+          </div>
+          <div class="bg-slate-950/60 px-3 py-2 rounded-xl border border-slate-800/60">
+            <span class="text-emerald-400 font-semibold">伸展時:</span> 無理のない範囲で伸ばし恥骨から先端
+          </div>
+          <div class="bg-slate-950/60 px-3 py-2 rounded-xl border border-slate-800/60">
+            <span class="text-indigo-400 font-semibold">勃起時:</span> 十分な勃起状態で恥骨から亀頭先端
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 最下部：計測履歴テーブル（新しい順） -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div class="flex items-center gap-2.5">
+            <h3 class="text-base sm:text-lg font-bold text-slate-100">計測ログ履歴一覧</h3>
+            <span id="record-count-badge" class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-num">0件</span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 cursor-pointer flex items-center gap-1.5 transition" title="JSONバックアップを復元">
+              <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              <span>JSON読込</span>
+              <input type="file" accept=".json" onchange="importJSON(event)" class="hidden">
+            </label>
+            <button type="button" onclick="exportCSV()" class="px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 flex items-center gap-1.5 transition">
+              <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              CSV出力
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                <th class="py-3 px-2 sm:px-3">計測日 / 時間帯</th>
+                <th class="py-3 px-2 text-cyan-400">通常時</th>
+                <th class="py-3 px-2 text-emerald-400">伸展時</th>
+                <th class="py-3 px-2 text-indigo-400">勃起時</th>
+                <th class="py-3 px-2 hidden sm:table-cell">コンディション・メモ</th>
+                <th class="py-3 px-2 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody" class="divide-y divide-slate-800/60 text-sm">
+              <!-- JSで動的に描画 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- タブ2: 詳細スペックシート（ベースライン寸法） -->
+    <!-- ========================================== -->
+    <div id="view-specs" class="tab-view hidden space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-800">
+          <div>
+            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+              ベースライン精密実測スペック
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">部位別・角度別の詳細プロポーションデータ（クリックして直接編集・保存可能）</p>
+          </div>
+          <button onclick="saveSpecs(true)" class="px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition self-start sm:self-auto">
+            変更を保存する
+          </button>
+        </div>
+
+        <div id="specs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- JSでカテゴリカードを自動生成 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- タブ3: フレナムピアス・カスタム履歴タイムライン -->
+    <!-- ========================================== -->
+    <div id="view-piercing" class="tab-view hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- 新規カスタム追加フォーム（左側 4カラム） -->
+        <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 h-fit shadow-xl">
+          <h3 class="text-base font-bold text-slate-100 mb-4 flex items-center gap-2">
+            <span class="w-2 h-5 rounded-full bg-gradient-to-b from-cyan-400 to-indigo-400"></span>
+            ピアスカスタムを追加
+          </h3>
+          <form id="piercing-form" onsubmit="handlePiercingSubmit(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">変更・装着日</label>
+              <input type="date" id="p-date" required class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">素材 / ステータス</label>
+                <input type="text" id="p-material" required placeholder="例: チタン / アクリル" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">ゲージ (G)</label>
+                <input type="text" id="p-gauge" required value="14G" placeholder="14G" class="font-num w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">シャフト長 (mm)</label>
+                <input type="number" step="1" id="p-shaft" required value="12" class="font-num w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">ボール径 (mm)</label>
+                <input type="number" step="1" id="p-ball" required value="4" class="font-num w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">メモ（フィット感・目的など）</label>
+              <input type="text" id="p-note" placeholder="例: 軽量化＆引っかかり防止" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition">
+            </div>
+
+            <label class="inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+              <input type="checkbox" id="p-current" checked class="rounded border-slate-700 bg-slate-950 text-cyan-500">
+              <span>現在装着中としてマークする</span>
+            </label>
+
+            <button type="submit" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-500/20 transition transform active:scale-[0.98]">
+              タイムラインに追加
+            </button>
+          </form>
+        </div>
+
+        <!-- タイムライン表示（右側 8カラム） -->
+        <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-100">フレナムピアス・カスタム遍歴</h2>
+              <p class="text-xs text-slate-400 mt-0.5">2026/10/13 セルフ開通からのサイズ・素材最適化ログ</p>
+            </div>
+            <div class="bg-cyan-500/10 border border-cyan-500/30 px-3 py-1.5 rounded-xl text-xs text-cyan-300 font-num">
+              ピアス込総厚み: <strong>42.5mm</strong>
+            </div>
+          </div>
+
+          <div id="piercing-timeline" class="relative pl-6 border-l-2 border-slate-800 space-y-6 ml-2">
+            <!-- JSでタイムラインノードを描画 -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // ==========================================
+    // 初期データ定義（デフォルト値）
+    // ==========================================
+    const DEFAULT_MEASUREMENTS = [
+      {
+        id: 'm-0',
+        date: '2026-10-13',
+        timeOfDay: 'その他',
+        flaccid: 10.5,
+        stretched: 16.5,
+        erect: 15.5,
+        note: '基本ベースライン（90°恥骨押し付け / 120°時は16.5-17.0cm）'
+      },
+      {
+        id: 'm-1',
+        date: '2026-11-15',
+        timeOfDay: '夜',
+        flaccid: 10.5,
+        stretched: 16.5,
+        erect: 15.5,
+        note: '定点計測1'
+      },
+      {
+        id: 'm-2',
+        date: '2026-11-18',
+        timeOfDay: '朝',
+        flaccid: 12.1,
+        stretched: 17.3,
+        erect: 15.9,
+        note: '朝イチ計測（ばらつき上限付近・リラックス状態）'
+      }
+    ];
+
+    const DEFAULT_SPECS = [
+      {
+        category: '通常時ベースライン',
+        accent: 'cyan',
+        items: [
+          { label: '全体長さ（表面から）', value: '8.5 - 9.5 cm' },
+          { label: '恥骨押し付け長さ', value: '10.5 cm' },
+          { label: '亀頭長さ / 幅', value: '3.5 cm / 3.7 cm' },
+          { label: 'カリ高さ', value: '3 - 4 mm' },
+          { label: '周囲長（中央 / 根本）', value: '11.0 cm / 11.0 cm' }
+        ]
+      },
+      {
+        category: '勃起時全長（角度別）',
+        accent: 'indigo',
+        items: [
+          { label: '恥骨押し付け（90°）', value: '15.0 - 16.0 cm' },
+          { label: '恥骨押し付け（下向き120°）', value: '16.5 - 17.0 cm' },
+          { label: '根本の表面からの見た目', value: '12.5 - 13.5 cm' }
+        ]
+      },
+      {
+        category: '亀頭・ピアス装着時寸法',
+        accent: 'emerald',
+        items: [
+          { label: '亀頭長さ', value: '4.2 cm' },
+          { label: '亀頭幅（最大）', value: '4.3 cm (最大 45 mm)' },
+          { label: '亀頭厚み（単体）', value: '3.5 cm (35.0 mm)' },
+          { label: 'ピアス装着時総厚み', value: '42.5 mm (+7.5 mm)' }
+        ]
+      },
+      {
+        category: 'カリ（亀頭冠）詳細高さ',
+        accent: 'teal',
+        items: [
+          { label: '上側（12時方向）', value: '5 - 6 mm' },
+          { label: '側面（3時・9時方向）', value: '6 mm' },
+          { label: '裏筋側周辺', value: '6 mm' },
+          { label: '6時方向（裏筋の正中）', value: '0 mm（カリなし）' }
+        ]
+      },
+      {
+        category: '竿の幅・厚み分布',
+        accent: 'sky',
+        items: [
+          { label: '幅：根元 / 中央 / カリ根元', value: '3.5 / 3.85-3.95 / 3.35 cm' },
+          { label: '厚み：根元', value: '3.1 - 3.2 cm' },
+          { label: '厚み：中央（カリ下15mm）', value: '3.3 - 3.4 cm' },
+          { label: '厚み：カリの根元', value: '2.8 cm' }
+        ]
+      },
+      {
+        category: '周囲長（ガース）詳細',
+        accent: 'violet',
+        items: [
+          { label: '周囲長：根本', value: '11.5 cm' },
+          { label: '周囲長：中央部', value: '11.6 - 12.0 cm' },
+          { label: '周囲長：亀頭最大幅部', value: '12.50 cm' }
+        ]
+      }
+    ];
+
+    const DEFAULT_PIERCINGS = [
+      {
+        id: 'p-1',
+        date: '2026-10-13',
+        material: 'セルフ開通（ファースト）',
+        gauge: '14G',
+        shaft: 16,
+        ball: 5,
+        note: '腫れ・余裕を考慮したロングシャフトで開通',
+        isCurrent: false
+      },
+      {
+        id: 'p-2',
+        date: '2026-10-30',
+        material: 'アクリル',
+        gauge: '14G',
+        shaft: 12,
+        ball: 5,
+        note: 'シャフトを16mm→12mmへダウンサイズ・軽量化',
+        isCurrent: false
+      },
+      {
+        id: 'p-3',
+        date: '2026-11-03',
+        material: 'サージカルステンレス',
+        gauge: '14G',
+        shaft: 12,
+        ball: 5,
+        note: 'ホール安定化に向けてステンレス製へ変更',
+        isCurrent: false
+      },
+      {
+        id: 'p-4',
+        date: '2026-11-06',
+        material: 'サージカルステンレス',
+        gauge: '14G',
+        shaft: 12,
+        ball: 6,
+        note: 'ボール径を6mmへサイズアップして存在感テスト',
+        isCurrent: false
+      },
+      {
+        id: 'p-5',
+        date: '2026-11-11',
+        material: 'アクリル',
+        gauge: '14G',
+        shaft: 12,
+        ball: 4,
+        note: 'ボール4mmでコンパクト＆快適性重視セッティング',
+        isCurrent: true
+      }
+    ];
+
+    // ==========================================
+    // 統計計算（平均・標準偏差・前回比・平均比）
+    // ==========================================
+    function calcStats(values) {
+      if (!values || values.length === 0) return { latest: '0.0', avg: '0.00', sd: '0.00', diff: null, vsAvg: 0 };
+      const latest = values[values.length - 1];
+      const prev = values.length > 1 ? values[values.length - 2] : null;
+      const diff = prev !== null ? +(latest - prev).toFixed(2) : null;
+
+      const sum = values.reduce((acc, v) => acc + v, 0);
+      const avg = sum / values.length;
+      const vsAvg = +(latest - avg).toFixed(2);
+
+      const variance = values.reduce((acc, v) => acc + Math.pow(v - avg, 2), 0) / values.length;
+      const sd = Math.sqrt(variance);
+
+      return {
+        latest: latest.toFixed(1),
+        avg: avg.toFixed(2),
+        sd: sd.toFixed(2),
+        diff,
+        vsAvg
+      };
+    }
+
+    function updateKPIs() {
+      // 日付順にソートして計算
+      const sorted = [...measurements].sort((a, b) => a.date.localeCompare(b.date));
+      const latestRec = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+      const badgeEl = document.getElementById('latest-record-badge');
+      if (badgeEl) {
+        badgeEl.textContent = latestRec ? `最新: ${latestRec.date} (${latestRec.timeOfDay})` : 'データなし';
+      }
+
+      const flaccidStats = calcStats(sorted.map(m => Number(m.flaccid)));
+      const stretchedStats = calcStats(sorted.map(m => Number(m.stretched)));
+      const erectStats = calcStats(sorted.map(m => Number(m.erect)));
+
+      applyStatToDOM('flaccid', flaccidStats);
+      applyStatToDOM('stretched', stretchedStats);
+      applyStatToDOM('erect', erectStats);
+    }
+
+    function applyStatToDOM(key, stat) {
+      document.getElementById(`kpi-${key}-latest`).textContent = stat.latest;
+      document.getElementById(`kpi-${key}-avg`).textContent = stat.avg;
+      document.getElementById(`kpi-${key}-sd`).textContent = `±${stat.sd}`;
+
+      const vsAvgEl = document.getElementById(`kpi-${key}-vs-avg`);
+      if (vsAvgEl) {
+        const sign = stat.vsAvg > 0 ? '+' : '';
+        vsAvgEl.textContent = `平均比 ${sign}${stat.vsAvg.toFixed(2)}cm`;
+      }
+
+      const diffEl = document.getElementById(`kpi-${key}-diff`);
+      if (stat.diff === null) {
+        diffEl.textContent = '初回基準';
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+      } else if (stat.diff > 0) {
+        diffEl.textContent = `前回比 +${stat.diff.toFixed(1)}`;
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+      } else if (stat.diff < 0) {
+        diffEl.textContent = `前回比 ${stat.diff.toFixed(1)}`;
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30';
+      } else {
+        diffEl.textContent = `前回比 ±0.0`;
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300';
+      }
+    }
+
+    // ==========================================
+    // Chart.js 推移グラフ描画（平均線 & ±1SDばらつき帯）
+    // ==========================================
+    function renderChart() {
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      let sorted = [...measurements].sort((a, b) => a.date.localeCompare(b.date));
+
+      const rangeVal = document.getElementById('chart-range-filter').value;
+      if (rangeVal !== 'all') {
+        const limit = parseInt(rangeVal, 10);
+        sorted = sorted.slice(-limit);
+      }
+
+      const labels = sorted.map(m => `${m.date.slice(5)} (${m.timeOfDay})`);
+      const flaccidData = sorted.map(m => Number(m.flaccid));
+      const stretchedData = sorted.map(m => Number(m.stretched));
+      const erectData = sorted.map(m => Number(m.erect));
+
+      const showAvg = document.getElementById('toggle-avg-lines').checked;
+      const showSdBands = document.getElementById('toggle-sd-bands').checked;
+
+      const calcMeanAndSd = (arr) => {
+        if (!arr.length) return { mean: 0, sd: 0 };
+        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+        const sd = Math.sqrt(arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length);
+        return { mean, sd };
+      };
+
+      const statF = calcMeanAndSd(flaccidData);
+      const statS = calcMeanAndSd(stretchedData);
+      const statE = calcMeanAndSd(erectData);
+
+      const datasets = [
+        {
+          label: '伸展時 (cm)',
+          data: stretchedData,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#090d16',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5,
+          tension: 0.25,
+          fill: false
+        },
+        {
+          label: '勃起時 (cm)',
+          data: erectData,
+          borderColor: '#818cf8',
+          backgroundColor: 'rgba(129, 140, 248, 0.15)',
+          pointBackgroundColor: '#818cf8',
+          pointBorderColor: '#090d16',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5,
+          tension: 0.25,
+          fill: false
+        },
+        {
+          label: '通常時 (cm)',
+          data: flaccidData,
+          borderColor: '#06b6d4',
+          backgroundColor: 'rgba(6, 182, 212, 0.15)',
+          pointBackgroundColor: '#06b6d4',
+          pointBorderColor: '#090d16',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5,
+          tension: 0.25,
+          fill: false
+        }
+      ];
+
+      if (showAvg && sorted.length > 0) {
+        datasets.push(
+          {
+            label: `伸展平均`,
+            data: sorted.map(() => +statS.mean.toFixed(2)),
+            borderColor: 'rgba(16, 185, 129, 0.5)',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            fill: false
+          },
+          {
+            label: `勃起平均`,
+            data: sorted.map(() => +statE.mean.toFixed(2)),
+            borderColor: 'rgba(129, 140, 248, 0.5)',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            fill: false
+          },
+          {
+            label: `通常平均`,
+            data: sorted.map(() => +statF.mean.toFixed(2)),
+            borderColor: 'rgba(6, 182, 212, 0.5)',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            fill: false
+          }
+        );
+      }
+
+      if (showSdBands && sorted.length > 1) {
+        // ±1SD ばらつき帯（通常・伸展・勃起それぞれの上限・下限バンド）
+        const addBand = (stat, color) => {
+          datasets.push(
+            {
+              label: '_band_upper',
+              data: sorted.map(() => +(stat.mean + stat.sd).toFixed(2)),
+              borderColor: 'transparent',
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              fill: false
+            },
+            {
+              label: '_band_lower',
+              data: sorted.map(() => +(stat.mean - stat.sd).toFixed(2)),
+              borderColor: 'transparent',
+              backgroundColor: color,
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              fill: '-1'
+            }
+          );
+        };
+        addBand(statS, 'rgba(16, 185, 129, 0.08)');
+        addBand(statE, 'rgba(129, 140, 248, 0.08)');
+        addBand(statF, 'rgba(6, 182, 212, 0.08)');
+      }
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                color: '#cbd5e1',
+                usePointStyle: true,
+                boxWidth: 8,
+                font: { family: 'Inter', size: 11 },
+                filter: (item) => !item.text.includes('平均') && !item.text.startsWith('_band')
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              titleColor: '#f8fafc',
+              bodyColor: '#e2e8f0',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 12,
+              titleFont: { family: 'JetBrains Mono', size: 12, weight: 'bold' },
+              bodyFont: { family: 'JetBrains Mono', size: 12 },
+              filter: (item) => !item.dataset.label.startsWith('_band'),
+              callbacks: {
+                afterBody: function(context) {
+                  if (!context.length) return [];
+                  const idx = context[0].dataIndex;
+                  const record = sorted[idx];
+                  if (record && record.note) {
+                    return [`\n📝 ${record.note}`];
+                  }
+                  return [];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } }
+            },
+            y: {
+              min: 8,
+              suggestedMax: 19,
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              ticks: {
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 11 },
+                callback: (val) => val + ' cm'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // 計測ログ履歴テーブル＆フォーム操作
+    // ==========================================
+    function renderHistoryTable() {
+      const tbody = document.getElementById('history-tbody');
+      const sortedDesc = [...measurements].sort((a, b) => b.date.localeCompare(a.date));
+      document.getElementById('record-count-badge').textContent = `${sortedDesc.length}件`;
+
+      if (sortedDesc.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs">データがありません。一番上のフォームから記録してください。</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = sortedDesc.map(m => {
+        const timeIcon = m.timeOfDay === '朝' ? '🌅' : m.timeOfDay === '昼' ? '☀️' : m.timeOfDay === '夜' ? '🌙' : '⏱️';
+        return `
+          <tr class="hover:bg-slate-800/40 transition group">
+            <td class="py-3 px-2 sm:px-3 whitespace-nowrap">
+              <div class="font-num text-xs sm:text-sm font-semibold text-slate-200">${m.date}</div>
+              <div class="text-[11px] text-slate-400">${timeIcon} ${m.timeOfDay}</div>
+            </td>
+            <td class="py-3 px-2 font-num text-xs sm:text-sm font-bold text-cyan-300">${Number(m.flaccid).toFixed(1)}<span class="text-[10px] font-normal text-slate-500 ml-0.5">cm</span></td>
+            <td class="py-3 px-2 font-num text-xs sm:text-sm font-bold text-emerald-300">${Number(m.stretched).toFixed(1)}<span class="text-[10px] font-normal text-slate-500 ml-0.5">cm</span></td>
+            <td class="py-3 px-2 font-num text-xs sm:text-sm font-bold text-indigo-300">${Number(m.erect).toFixed(1)}<span class="text-[10px] font-normal text-slate-500 ml-0.5">cm</span></td>
+            <td class="py-3 px-2 text-xs text-slate-400 hidden sm:table-cell max-w-[240px] truncate" title="${escapeHTML(m.note || '')}">${escapeHTML(m.note || '-')}</td>
+            <td class="py-3 px-2 text-right whitespace-nowrap">
+              <button onclick="editMeasurement('${m.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition" title="編集">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              </button>
+              <button onclick="deleteMeasurement('${m.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition" title="削除">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function setInputDateMode(mode) {
+      const todayBtn = document.getElementById('mode-today-btn');
+      const pastBtn = document.getElementById('mode-past-btn');
+      const dateInput = document.getElementById('input-date');
+
+      if (mode === 'today') {
+        todayBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition';
+        pastBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition';
+        dateInput.value = getTodayString();
+      } else {
+        pastBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 transition';
+        todayBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition';
+        dateInput.focus();
+        if (dateInput.showPicker) {
+          try { dateInput.showPicker(); } catch (e) {}
+        }
+      }
+    }
+
+    function handleMeasurementSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById('edit-record-id').value;
+      const date = document.getElementById('input-date').value;
+      const timeOfDay = document.getElementById('input-timeOfDay').value;
+      const flaccid = parseFloat(document.getElementById('input-flaccid').value);
+      const stretched = parseFloat(document.getElementById('input-stretched').value);
+      const erect = parseFloat(document.getElementById('input-erect').value);
+      const note = document.getElementById('input-note').value.trim();
+
+      if (editId) {
+        const idx = measurements.findIndex(m => m.id === editId);
+        if (idx !== -1) {
+          measurements[idx] = { id: editId, date, timeOfDay, flaccid, stretched, erect, note };
+          showToast('計測データを更新しました');
+        }
+      } else {
+        measurements.push({
+          id: 'm-' + Date.now(),
+          date,
+          timeOfDay,
+          flaccid,
+          stretched,
+          erect,
+          note
+        });
+        showToast('計測データを保存しました');
+      }
+
+      saveData();
+      resetForm();
+      refreshAll();
+    }
+
+    function editMeasurement(id) {
+      const target = measurements.find(m => m.id === id);
+      if (!target) return;
+
+      document.getElementById('edit-record-id').value = target.id;
+      document.getElementById('input-date').value = target.date;
+      document.getElementById('input-timeOfDay').value = target.timeOfDay;
+      document.getElementById('input-flaccid').value = target.flaccid;
+      document.getElementById('input-stretched').value = target.stretched;
+      document.getElementById('input-erect').value = target.erect;
+      document.getElementById('input-note').value = target.note || '';
+
+      document.getElementById('form-title').textContent = '計測データを編集中';
+      document.getElementById('submit-btn').textContent = '変更を保存';
+      document.getElementById('cancel-edit-btn').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.getElementById('input-flaccid').focus();
+    }
+
+    function resetForm() {
+      document.getElementById('edit-record-id').value = '';
+      document.getElementById('measurement-form').reset();
+      setInputDateMode('today');
+      document.getElementById('form-title').textContent = '計測データをインプット';
+      document.getElementById('submit-btn').textContent = '記録を保存する';
+      document.getElementById('cancel-edit-btn').classList.add('hidden');
+    }
+
+    function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (Array.isArray(parsed.measurements)) measurements = parsed.measurements;
+          if (Array.isArray(parsed.specs)) specs = parsed.specs;
+          if (Array.isArray(parsed.piercings)) piercings = parsed.piercings;
+          saveData();
+          refreshAll();
+          showToast('JSONバックアップを復元しました');
+        } catch (err) {
+          showToast('JSONの読み込みに失敗しました', 'error');
+        }
+        event.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+    }
+
+    function saveData() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(measurements));
+        localStorage.setItem(STORAGE_KEYS.SPECS, JSON.stringify(specs));
+        localStorage.setItem(STORAGE_KEYS.PIERCINGS, JSON.stringify(piercings));
+      } catch (e) {
+        showToast('データの保存に失敗しました', 'error');
+      }
+    }
+
+    // ==========================================
+    // 統計計算（平均・標準偏差・前回比）
+    // ==========================================
+    function calcStats(values) {
+      if (!values || values.length === 0) return { latest: 0, avg: 0, sd: 0, diff: null };
+      const latest = values[values.length - 1];
+      const prev = values.length > 1 ? values[values.length - 2] : null;
+      const diff = prev !== null ? +(latest - prev).toFixed(2) : null;
+
+      const sum = values.reduce((acc, v) => acc + v, 0);
+      const avg = sum / values.length;
+
+      const variance = values.reduce((acc, v) => acc + Math.pow(v - avg, 2), 0) / values.length;
+      const sd = Math.sqrt(variance);
+
+      return {
+        latest: latest.toFixed(1),
+        avg: avg.toFixed(2),
+        sd: sd.toFixed(2),
+        diff
+      };
+    }
+
+    function updateKPIs() {
+      // 日付順にソートして計算
+      const sorted = [...measurements].sort((a, b) => a.date.localeCompare(b.date));
+      const flaccidStats = calcStats(sorted.map(m => Number(m.flaccid)));
+      const stretchedStats = calcStats(sorted.map(m => Number(m.stretched)));
+      const erectStats = calcStats(sorted.map(m => Number(m.erect)));
+
+      applyStatToDOM('flaccid', flaccidStats);
+      applyStatToDOM('stretched', stretchedStats);
+      applyStatToDOM('erect', erectStats);
+    }
+
+    function applyStatToDOM(key, stat) {
+      document.getElementById(`kpi-${key}-latest`).textContent = stat.latest;
+      document.getElementById(`kpi-${key}-avg`).textContent = stat.avg;
+      document.getElementById(`kpi-${key}-sd`).textContent = `±${stat.sd}`;
+
+      const diffEl = document.getElementById(`kpi-${key}-diff`);
+      if (stat.diff === null) {
+        diffEl.textContent = '初回基準';
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+      } else if (stat.diff > 0) {
+        diffEl.textContent = `+${stat.diff.toFixed(1)} cm`;
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+      } else if (stat.diff < 0) {
+        diffEl.textContent = `${stat.diff.toFixed(1)} cm`;
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30';
+      } else {
+        diffEl.textContent = `±0.0 cm`;
+        diffEl.className = 'font-num text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300';
+      }
+    }
+
+    // ==========================================
+    // Chart.js 推移グラフ描画
+    // ==========================================
+    function renderChart() {
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      const sorted = [...measurements].sort((a, b) => a.date.localeCompare(b.date));
+
+      const labels = sorted.map(m => `${m.date.slice(5)} (${m.timeOfDay})`);
+      const flaccidData = sorted.map(m => m.flaccid);
+      const stretchedData = sorted.map(m => m.stretched);
+      const erectData = sorted.map(m => m.erect);
+
+      const showAvg = document.getElementById('toggle-avg-lines').checked;
+      const showFill = document.getElementById('toggle-range-fill').checked;
+
+      const avgF = flaccidData.length ? flaccidData.reduce((a, b) => a + b, 0) / flaccidData.length : 0;
+      const avgS = stretchedData.length ? stretchedData.reduce((a, b) => a + b, 0) / stretchedData.length : 0;
+      const avgE = erectData.length ? erectData.reduce((a, b) => a + b, 0) / erectData.length : 0;
+
+      const datasets = [
+        {
+          label: '伸展時 (cm)',
+          data: stretchedData,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#090d16',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5,
+          tension: 0.25,
+          fill: showFill ? '+1' : false
+        },
+        {
+          label: '勃起時 (cm)',
+          data: erectData,
+          borderColor: '#818cf8',
+          backgroundColor: 'rgba(129, 140, 248, 0.12)',
+          pointBackgroundColor: '#818cf8',
+          pointBorderColor: '#090d16',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5,
+          tension: 0.25,
+          fill: false
+        },
+        {
+          label: '通常時 (cm)',
+          data: flaccidData,
+          borderColor: '#06b6d4',
+          backgroundColor: 'rgba(6, 182, 212, 0.12)',
+          pointBackgroundColor: '#06b6d4',
+          pointBorderColor: '#090d16',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 2.5,
+          tension: 0.25,
+          fill: false
+        }
+      ];
+
+      if (showAvg && sorted.length > 0) {
+        datasets.push(
+          {
+            label: `伸展平均 (${avgS.toFixed(1)}cm)`,
+            data: sorted.map(() => +avgS.toFixed(2)),
+            borderColor: 'rgba(16, 185, 129, 0.45)',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            fill: false
+          },
+          {
+            label: `勃起平均 (${avgE.toFixed(1)}cm)`,
+            data: sorted.map(() => +avgE.toFixed(2)),
+            borderColor: 'rgba(129, 140, 248, 0.45)',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            fill: false
+          },
+          {
+            label: `通常平均 (${avgF.toFixed(1)}cm)`,
+            data: sorted.map(() => +avgF.toFixed(2)),
+            borderColor: 'rgba(6, 182, 212, 0.45)',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            fill: false
+          }
+        );
+      }
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                color: '#cbd5e1',
+                usePointStyle: true,
+                boxWidth: 8,
+                font: { family: 'Inter', size: 11 },
+                filter: (item) => !item.text.includes('平均') // 凡例はスッキリ3系列のみ表示
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              titleColor: '#f8fafc',
+              bodyColor: '#e2e8f0',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 12,
+              titleFont: { family: 'JetBrains Mono', size: 12, weight: 'bold' },
+              bodyFont: { family: 'JetBrains Mono', size: 12 },
+              callbacks: {
+                afterBody: function(context) {
+                  const idx = context[0].dataIndex;
+                  const record = sorted[idx];
+                  if (record && record.note) {
+                    return [`\n📝 ${record.note}`];
+                  }
+                  return [];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 11 } }
+            },
+            y: {
+              min: 8,
+              suggestedMax: 19,
+              grid: { color: 'rgba(51, 65, 85, 0.3)' },
+              ticks: {
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 11 },
+                callback: (val) => val + ' cm'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // 計測ログ履歴テーブル＆フォーム操作
+    // ==========================================
+    function renderHistoryTable() {
+      const tbody = document.getElementById('history-tbody');
+      const sortedDesc = [...measurements].sort((a, b) => b.date.localeCompare(a.date));
+      document.getElementById('record-count-badge').textContent = `${sortedDesc.length}件`;
+
+      if (sortedDesc.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs">データがありません。左のフォームから追加してください。</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = sortedDesc.map(m => {
+        const timeIcon = m.timeOfDay === '朝' ? '🌅' : m.timeOfDay === '昼' ? '☀️' : '🌙';
+        return `
+          <tr class="hover:bg-slate-800/40 transition group">
+            <td class="py-3 px-2 sm:px-3 whitespace-nowrap">
+              <div class="font-num text-xs sm:text-sm font-semibold text-slate-200">${m.date}</div>
+              <div class="text-[11px] text-slate-400">${timeIcon} ${m.timeOfDay}</div>
+            </td>
+            <td class="py-3 px-2 font-num text-xs sm:text-sm font-bold text-cyan-300">${Number(m.flaccid).toFixed(1)}<span class="text-[10px] font-normal text-slate-500 ml-0.5">cm</span></td>
+            <td class="py-3 px-2 font-num text-xs sm:text-sm font-bold text-emerald-300">${Number(m.stretched).toFixed(1)}<span class="text-[10px] font-normal text-slate-500 ml-0.5">cm</span></td>
+            <td class="py-3 px-2 font-num text-xs sm:text-sm font-bold text-indigo-300">${Number(m.erect).toFixed(1)}<span class="text-[10px] font-normal text-slate-500 ml-0.5">cm</span></td>
+            <td class="py-3 px-2 text-xs text-slate-400 hidden sm:table-cell max-w-[180px] truncate" title="${escapeHTML(m.note || '')}">${escapeHTML(m.note || '-')}</td>
+            <td class="py-3 px-2 text-right whitespace-nowrap">
+              <button onclick="editMeasurement('${m.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition" title="編集">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              </button>
+              <button onclick="deleteMeasurement('${m.id}')" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition" title="削除">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function handleMeasurementSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById('edit-record-id').value;
+      const date = document.getElementById('input-date').value;
+      const timeOfDay = document.getElementById('input-timeOfDay').value;
+      const flaccid = parseFloat(document.getElementById('input-flaccid').value);
+      const stretched = parseFloat(document.getElementById('input-stretched').value);
+      const erect = parseFloat(document.getElementById('input-erect').value);
+      const note = document.getElementById('input-note').value.trim();
+
+      if (editId) {
+        const idx = measurements.findIndex(m => m.id === editId);
+        if (idx !== -1) {
+          measurements[idx] = { id: editId, date, timeOfDay, flaccid, stretched, erect, note };
+          showToast('計測データを更新しました');
+        }
+      } else {
+        measurements.push({
+          id: 'm-' + Date.now(),
+          date,
+          timeOfDay,
+          flaccid,
+          stretched,
+          erect,
+          note
+        });
+        showToast('新しい計測データを追加しました');
+      }
+
+      saveData();
+      resetForm();
+      refreshAll();
+    }
+
+    function editMeasurement(id) {
+      const target = measurements.find(m => m.id === id);
+      if (!target) return;
+
+      document.getElementById('edit-record-id').value = target.id;
+      document.getElementById('input-date').value = target.date;
+      document.getElementById('input-timeOfDay').value = target.timeOfDay;
+      document.getElementById('input-flaccid').value = target.flaccid;
+      document.getElementById('input-stretched').value = target.stretched;
+      document.getElementById('input-erect').value = target.erect;
+      document.getElementById('input-note').value = target.note || '';
+
+      document.getElementById('form-title').innerHTML = `<span class="w-2 h-5 rounded-full bg-amber-400"></span>計測データを編集中`;
+      document.getElementById('submit-btn').textContent = '変更を保存';
+      document.getElementById('cancel-edit-btn').classList.remove('hidden');
+      document.getElementById('input-flaccid').focus();
+    }
+
+    function resetForm() {
+      document.getElementById('edit-record-id').value = '';
+      document.getElementById('measurement-form').reset();
+      setTodayDate();
+      document.getElementById('form-title').innerHTML = `<span class="w-2 h-5 rounded-full bg-gradient-to-b from-cyan-400 to-emerald-400"></span>新規計測データを記録`;
+      document.getElementById('submit-btn').textContent = '記録を追加する';
+      document.getElementById('cancel-edit-btn').classList.add('hidden');
+    }
+
+    function deleteMeasurement(id) {
+      openConfirmModal('計測データの削除', 'この計測レコードを削除してもよろしいですか？', () => {
+        measurements = measurements.filter(m => m.id !== id);
+        saveData();
+        refreshAll();
+        showToast('レコードを削除しました');
+      });
+    }
+
+    // ==========================================
+    // 詳細スペックシート描画・保存
+    // ==========================================
+    function renderSpecs() {
+      const grid = document.getElementById('specs-grid');
+      const colorMap = {
+        cyan: 'border-cyan-500/30 text-cyan-400',
+        indigo: 'border-indigo-500/30 text-indigo-400',
+        emerald: 'border-emerald-500/30 text-emerald-400',
+        teal: 'border-teal-500/30 text-teal-400',
+        sky: 'border-sky-500/30 text-sky-400',
+        violet: 'border-violet-500/30 text-violet-400'
+      };
+
+      grid.innerHTML = specs.map((cat, cIdx) => {
+        const badgeStyle = colorMap[cat.accent] || colorMap.cyan;
+        return `
+          <div class="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between">
+            <div>
+              <div class="inline-block px-2.5 py-1 rounded-lg bg-slate-900 border ${badgeStyle} text-xs font-bold mb-3">
+                ${escapeHTML(cat.category)}
+              </div>
+              <div class="space-y-2.5">
+                ${cat.items.map((item, iIdx) => `
+                  <div class="flex flex-col border-b border-slate-800/50 pb-2 last:border-none last:pb-0">
+                    <span class="text-[11px] text-slate-400">${escapeHTML(item.label)}</span>
+                    <input type="text" 
+                      value="${escapeHTML(item.value)}" 
+                      onchange="updateSpecValue(${cIdx}, ${iIdx}, this.value)"
+                      class="font-num text-sm font-semibold text-slate-100 bg-transparent hover:bg-slate-900 focus:bg-slate-900 px-1.5 py-0.5 -mx-1.5 rounded border border-transparent focus:border-cyan-500/50 focus:outline-none transition mt-0.5">
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateSpecValue(cIdx, iIdx, newVal) {
+      specs[cIdx].items[iIdx].value = newVal;
+      saveSpecs(false);
+    }
+
+    function saveSpecs(notify = true) {
+      saveData();
+      if (notify) showToast('詳細スペックを保存しました');
+    }
+
+    // ==========================================
+    // フレナムピアス・タイムライン描画・追加
+    // ==========================================
+    function renderPiercings() {
+      const container = document.getElementById('piercing-timeline');
+      // 新しい順（または時系列順）に表示：時系列順（古い→最新）で成長が見えるように並べる
+      const sorted = [...piercings].sort((a, b) => a.date.localeCompare(b.date));
+
+      container.innerHTML = sorted.map((p, idx) => {
+        const isCurrent = p.isCurrent;
+        const dotClass = isCurrent 
+          ? 'bg-emerald-400 ring-4 ring-emerald-500/25 shadow-lg shadow-emerald-500/50' 
+          : 'bg-cyan-500 ring-4 ring-slate-900';
+
+        return `
+          <div class="relative group">
+            <!-- タイムラインノード -->
+            <span class="absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full ${dotClass}"></span>
+            
+            <div class="bg-slate-950/90 border ${isCurrent ? 'border-emerald-500/40' : 'border-slate-800'} rounded-2xl p-4 transition hover:border-slate-700">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-num text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-0.5 rounded-lg border border-cyan-500/20">
+                    ${p.date}
+                  </span>
+                  <span class="text-sm font-bold text-slate-100">${escapeHTML(p.material)}</span>
+                  ${isCurrent ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">現在装着中</span>` : ''}
+                </div>
+                <div class="flex items-center gap-1">
+                  ${!isCurrent ? `<button onclick="setCurrentPiercing('${p.id}')" class="text-[11px] px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-emerald-300 transition">装着中にする</button>` : ''}
+                  <button onclick="deletePiercing('${p.id}')" class="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-900 transition" title="削除">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- スペックバッジ -->
+              <div class="flex flex-wrap gap-2 my-2 font-num text-xs">
+                <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                  ゲージ: <strong class="text-white">${escapeHTML(p.gauge)}</strong>
+                </span>
+                <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                  シャフト: <strong class="text-cyan-300">${p.shaft}mm</strong>
+                </span>
+                <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+                  ボール: <strong class="text-emerald-300">${p.ball}mm</strong>
+                </span>
+              </div>
+
+              ${p.note ? `<p class="text-xs text-slate-400 mt-1.5">${escapeHTML(p.note)}</p>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function handlePiercingSubmit(e) {
+      e.preventDefault();
+      const date = document.getElementById('p-date').value;
+      const material = document.getElementById('p-material').value.trim();
+      const gauge = document.getElementById('p-gauge').value.trim();
+      const shaft = parseFloat(document.getElementById('p-shaft').value);
+      const ball = parseFloat(document.getElementById('p-ball').value);
+      const note = document.getElementById('p-note').value.trim();
+      const isCurrent = document.getElementById('p-current').checked;
+
+      if (isCurrent) {
+        piercings.forEach(p => p.isCurrent = false);
+      }
+
+      piercings.push({
+        id: 'p-' + Date.now(),
+        date,
+        material,
+        gauge,
+        shaft,
+        ball,
+        note,
+        isCurrent
+      });
+
+      saveData();
+      document.getElementById('piercing-form').reset();
+      document.getElementById('p-gauge').value = '14G';
+      document.getElementById('p-shaft').value = '12';
+      document.getElementById('p-ball').value = '4';
+      setTodayDate();
+      renderPiercings();
+      showToast('ピアスカスタム履歴を追加しました');
+    }
+
+    function setCurrentPiercing(id) {
+      piercings.forEach(p => p.isCurrent = (p.id === id));
+      saveData();
+      renderPiercings();
+      showToast('現在装着中のセッティングを更新しました');
+    }
+
+    function deletePiercing(id) {
+      openConfirmModal('ピアス履歴の削除', 'このカスタム履歴を削除してもよろしいですか？', () => {
+        piercings = piercings.filter(p => p.id !== id);
+        saveData();
+        renderPiercings();
+        showToast('履歴を削除しました');
+      });
+    }
+
+    // ==========================================
+    // タブ切り替え & エクスポート・初期化機能
+    // ==========================================
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`view-${tabName}`).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-cyan-400', 'text-cyan-400', 'bg-slate-900/60', 'font-semibold');
+        btn.classList.add('border-transparent', 'text-slate-400', 'font-medium');
+      });
+
+      const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+      activeBtn.classList.remove('border-transparent', 'text-slate-400', 'font-medium');
+      activeBtn.classList.add('border-cyan-400', 'text-cyan-400', 'bg-slate-900/60', 'font-semibold');
+
+      if (tabName === 'analytics') {
+        renderChart();
+      }
+    }
+
+    function exportCSV() {
+      const sorted = [...measurements].sort((a, b) => a.date.localeCompare(b.date));
+      const header = ['日付', '時間帯', '通常時(cm)', '伸展時(cm)', '勃起時(cm)', 'メモ'];
+      const rows = sorted.map(m => [
+        m.date,
+        m.timeOfDay,
+        m.flaccid,
+        m.stretched,
+        m.erect,
+        `"${(m.note || '').replace(/"/g, '""')}"`
+      ]);
+      const csvContent = '\uFEFF' + [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+      downloadFile(csvContent, `size_measurements_${getTodayString()}.csv`, 'text/csv;charset=utf-8;');
+      showToast('CSVファイルを出力しました');
+    }
+
+    function exportJSON() {
+      const backup = {
+        exportedAt: new Date().toISOString(),
+        measurements,
+        specs,
+        piercings
+      };
+      downloadFile(JSON.stringify(backup, null, 2), `aoshio_size_gear_backup_${getTodayString()}.json`, 'application/json');
+      showToast('JSONバックアップを出力しました');
+    }
+
+    function downloadFile(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function confirmResetData() {
+      openConfirmModal(
+        'データの初期化',
+        '追加・編集したすべてのデータをリセットし、初期登録状態に戻しますか？',
+        () => {
+          localStorage.removeItem(STORAGE_KEYS.MEASUREMENTS);
+          localStorage.removeItem(STORAGE_KEYS.SPECS);
+          localStorage.removeItem(STORAGE_KEYS.PIERCINGS);
+          loadData();
+          refreshAll();
+          showToast('初期データにリセットしました');
+        }
+      );
+    }
+
+    // ==========================================
+    // ユーティリティ（モーダル・トースト・日付）
+    // ==========================================
+    function openConfirmModal(title, message, onConfirm) {
+      const modal = document.getElementById('confirm-modal');
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-message').textContent = message;
+
+      const confirmBtn = document.getElementById('modal-confirm');
+      const cancelBtn = document.getElementById('modal-cancel');
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      };
+
+      confirmBtn.onclick = () => {
+        cleanup();
+        onConfirm();
+      };
+      cancelBtn.onclick = cleanup;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const borderColor = type === 'error' ? 'border-rose-500/50 text-rose-200' : 'border-cyan-500/50 text-cyan-100';
+      toast.className = `bg-slate-900/95 backdrop-blur-md border ${borderColor} px-4 py-3 rounded-xl shadow-2xl text-xs font-medium flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `
+        <span class="w-2 h-2 rounded-full ${type === 'error' ? 'bg-rose-400' : 'bg-emerald-400'}"></span>
+        <span>${escapeHTML(message)}</span>
+      `;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 2800);
+    }
+
+    function getTodayString() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function setTodayDate() {
+      const today = getTodayString();
+      const mDate = document.getElementById('input-date');
+      const pDate = document.getElementById('p-date');
+      if (mDate) mDate.value = today;
+      if (pDate) pDate.value = today;
+    }
+
+    function escapeHTML(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function refreshAll() {
+      updateKPIs();
+      renderChart();
+      renderHistoryTable();
+      renderSpecs();
+      renderPiercings();
+    }
+
+    // 初期化実行
+    window.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      setTodayDate();
+      refreshAll();
+    });
+  </script>
+</body>
+</html>
